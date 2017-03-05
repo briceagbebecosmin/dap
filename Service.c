@@ -26,13 +26,18 @@ static void serv_vRunJobs(void);
 
 static u8 serv_aubJobMemory[1024];
 
+static u8 serv_aubOutputBuffer[1024];
+
 static u16  serv_uwJobs;
 
 static WorkQueue serv_sQueue;
 
+static u16 serv_uwDataSize;
+
 void serv_vInit(void)
 {
-	serv_uwJobs = (u16)0;
+	serv_uwJobs     = (u16)0;
+	serv_uwDataSize = (u16)0;
 }
 
 static void serv_vDispatch(Job *psJob)
@@ -40,6 +45,8 @@ static void serv_vDispatch(Job *psJob)
 	psJob->eJobState = eSERVING;
 
 	serv_vExec(psJob);
+
+	psJob->eJobState = eDONE;
 
 	serv_uwJobs--;
 }
@@ -82,11 +89,10 @@ static void serv_vExec(Job* psJob)
 
 	if(psJob->sHeader.ubCommand < (SERVICES - (u8)1))
 	{
-		cpsHandler[psJob->sHeader.ubCommand].pfctHandler(&serv_aubJobMemory[psJob->ubJobDataOffset]);
+		cpsHandler[psJob->sHeader.ubCommand].pfctHandler(&serv_aubJobMemory[psJob->ubJobDataOffset],&serv_uwDataSize);
 
+        psJob->sHeader.ulDS = (u32)serv_uwDataSize;
 		serv_vPutResponse(psJob);
-
-		psJob->eJobState = eDONE;
 
 	}else
 	{
@@ -97,12 +103,15 @@ static void serv_vExec(Job* psJob)
 
 static void serv_vError(const u8 cubError,const Header* cpsHeader)
 {
+	Job sJob;
 
-}
+	util_vMemCopy(&sJob.sHeader,cpsHeader,sizeof(Header));
 
-static void serv_vGetAdcRaw(u8 *pubData)
-{
-	/* TODO Put the response data to the same location */
+	sJob.sHeader.ubFID   = cubError;
+	sJob.ubJobDataOffset = (u8)0;
+	sJob.eJobState       = eDONE;
+
+	serv_vPutResponse(&sJob);
 }
 
 static void serv_vSavejob(Job *psJob)
@@ -116,11 +125,23 @@ static void serv_vSavejob(Job *psJob)
 static void serv_vPutResponse(Job* psJob)
 {
 	Job psLocalJob;
+	const Sender *psSender = &csSender;
+	u32 ulSizeOfData = (u32)0;
 
-	util_vMemCopy(psJob,&psLocalJob,sizeof(Job));
+	util_vMemCopy(&psLocalJob,psJob,sizeof(Job));
 
+	util_vMemCopy(&serv_aubOutputBuffer[0],(u8*)&psLocalJob.sHeader,sizeof(Header));
+
+	util_vMemCopy(&serv_aubOutputBuffer[sizeof(Header)],&serv_aubJobMemory[psLocalJob.ubJobDataOffset],psLocalJob.sHeader.ulDS);
+
+	serv_aubJobMemory[(u32)sizeof(Header) + psLocalJob.sHeader.ulDS] = 0x3B; /* EOF = ';'*/
+
+	ulSizeOfData = ((u32)sizeof(Header) + psLocalJob.sHeader.ulDS + (u32)1);
+
+	psSender->pfctSendRaw(&serv_aubOutputBuffer[0],ulSizeOfData);
 }
-
+ 
+/* Main thread to execute the jobs put in queue */
 static void serv_vRunJobs(void)
 {
 	Job* psJob;

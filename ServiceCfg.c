@@ -6,7 +6,7 @@
 
 
 
-static const RequestHandler acsHandlers[SERVICES] =
+const RequestHandler acsHandlers[SERVICES] =
 {
 		{
 				.pfctHandler =  null,
@@ -16,4 +16,9 @@ static const RequestHandler acsHandlers[SERVICES] =
 				.pfctHandler = null,
 				.ubCmd       = SERVICE_SETPWM_CMD
 		}
+};
+
+const Sender csSender = 
+{
+	.pfctSendRaw = null
 };

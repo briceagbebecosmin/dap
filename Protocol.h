@@ -39,12 +39,14 @@ typedef struct
 
 #define DATA_OFFSET (((u8)7) + DLC_SIZE)
 
-
 #define FRAME_REQUEST      ((u8)1)
 #define FRAME_ERROR        ((u8)2)
 #define FRAME_MORE         ((u8)3)
 #define FRAME_CMD_ERROR    ((u8)4)
 #define FRAME_SERVICE_BUSY ((u8)5)
+#define FRAME_RESPONSE     ((u8)6)
+
+
 
 
 #endif
