@@ -1,3 +1,4 @@
 # UNDER DEVELOPMENT
 
-[IMG]http://i63.tinypic.com/2z40jkp.png[/IMG]
+
+![alt tag](http://i63.tinypic.com/2z40jkp.png)
