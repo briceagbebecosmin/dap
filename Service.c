@@ -1,6 +1,8 @@
 #include "Types.h"
 #include "Util.h"
 #include "Protocol.h"
+#include "ServiceCfg.h"
+#include "Queue.h"
 #include "Service.h"
 
 
@@ -19,23 +21,14 @@ static void serv_vSavejob(Job *psJob);
 
 static void serv_vPutResponse(Job* psJob);
 
+static void serv_vRunJobs(void);
+
 
 static u8 serv_aubJobMemory[1024];
 
 static u16  serv_uwJobs;
 
-static const RequestHandler acsHandlers[SERVICES] =
-{
-		{
-				.pfctHandler =  serv_vGetAdcRaw,
-				.ubCmd       =  SERVICE_GETADC_CMD
-		},
-		{
-				.pfctHandler = null,
-				.ubCmd       = SERVICE_SETPWM_CMD
-		}
-};
-
+static WorkQueue serv_sQueue;
 
 void serv_vInit(void)
 {
@@ -61,7 +54,7 @@ void serv_vRunService(const u8 *cpubFrame)
 	sHeader.ulDevice = (u32)((u32)*(cpubFrame + DEVICE_OFFSET)
 			| ((u32)*(cpubFrame + DEVICE_OFFSET + 1) << 8)
 			| ((u32)*(cpubFrame + DEVICE_OFFSET + 2) << 16)
-			| ((u32)*(cpubFrame + DEVICE_OFFSET + 2) << 24));
+			| ((u32)*(cpubFrame + DEVICE_OFFSET + 3) << 24));
 	sHeader.ubCommand = *(cpubFrame + COMMAND_OFFSET);
 	sHeader.uwTimeStamp = (u16)(*(cpubFrame + TIMESTAMP_OFFSET)
 			|((u16)*(cpubFrame + TIMESTAMP_OFFSET + 1))<< 8);
@@ -70,7 +63,7 @@ void serv_vRunService(const u8 *cpubFrame)
 			| (((u32)*(cpubFrame + DLC_OFFSET + 2)) << 16)
 			| (((u32)*(cpubFrame + DLC_OFFSET + 3)) << 24));
 
-	if(serv_uwJobs != (JOBS - ((u16)1))
+	if(serv_uwJobs != (JOBS - ((u16)1)))
 	{
 		util_vMemCopy(&sHeader,&sJob.sHeader,sizeof(Header));
 		sJob.ubJobDataOffset = (serv_uwJobs * (u16)4);
@@ -116,6 +109,8 @@ static void serv_vSavejob(Job *psJob)
 {
 	psJob->eJobState = eACQUIRED;
 	serv_uwJobs++;
+
+	wq_vEnqueue(&serv_sQueue,psJob);
 }
 
 static void serv_vPutResponse(Job* psJob)
@@ -126,7 +121,15 @@ static void serv_vPutResponse(Job* psJob)
 
 }
 
+static void serv_vRunJobs(void)
+{
+	Job* psJob;
 
+	while((psJob = wq_vDequeue(&serv_sQueue)) != null)
+	{
+		serv_vDispatch(psJob);
+	} 
+}
 
 
 
